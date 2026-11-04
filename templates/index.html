@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Video Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f1f1f1;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-top: 50px;
+        }
+
+        .section {
+            width: 45%;
+            text-align: center;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .input-container {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .input-container input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .preview-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .preview-container video {
+            max-width: 100%;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 3px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .spinner {
+            display: none;
+            text-align: center;
+        }
+
+        .spinner img {
+            width: 50px;
+            height: 50px;
+        }
+
+        .result {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Deepfake Video Detection</h1>
+
+    <div class="container">
+        <div class="section">
+            <h2>Upload Video</h2>
+            <div class="input-container">
+                <input type="file" id="videoInput" accept="video/*" onchange="previewVideo(event)">
+            </div>
+
+            <div class="preview-container">
+                <video id="videoPlayer" controls></video>
+            </div>
+
+            <button onclick="submitVideo()">Detect Deepfake</button>
+
+            <div class="spinner" id="videoSpinner">
+                <img src="static/spinner1.gif" alt="Loading...">
+            </div>
+
+            <div class="result" id="detectionResult">
+                <!-- Result will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function previewVideo(event) {
+            const videoInput = document.getElementById('videoInput');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const file = videoInput.files[0];
+
+            if (file) {
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                videoPlayer.style.display = 'block';
+            }
+        }
+
+        function submitVideo() {
+            const videoInput = document.getElementById('videoInput');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const videoSpinner = document.getElementById('videoSpinner');
+            const detectionResult = document.getElementById('detectionResult');
+
+            const file = videoInput.files[0];
+            if (!file) {
+                alert('Please upload a video file.');
+                return;
+            }
+
+            // Show the spinner while waiting for the response
+            videoSpinner.style.display = 'block';
+
+            // Remove previous results
+            detectionResult.innerHTML = '';
+
+            // Create a new FormData object
+            const formData = new FormData();
+            formData.append('video', file);
+
+            // Create the request object
+            fetch('/predict', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide the spinner
+                videoSpinner.style.display = 'none';
+
+                // Display the prediction result
+                const resultText = `Result: ${data.result} <br> Confidence: ${data.confidence.toFixed(2)}`;
+                detectionResult.innerHTML = resultText;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                detectionResult.innerHTML = 'An error occurred while processing the video.';
+                videoSpinner.style.display = 'none';
+            });
+        }
+    </script>
+</body>
+</html>
