@@ -3,177 +3,1559 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deepfake Video Detection</title>
+    <meta name="description" content="Upload a video or image and detect deepfake manipulation with a spatio-temporal neural network.">
+    <title>VeriFrame — Deepfake Detection</title>
     <style>
+        :root {
+            --bg: #060912;
+            --panel: rgba(15, 23, 42, 0.82);
+            --panel-soft: rgba(148, 163, 184, 0.06);
+            --border: rgba(148, 163, 184, 0.14);
+            --border-strong: rgba(148, 163, 184, 0.26);
+            --text: #e8eefc;
+            --muted: #94a3b8;
+            --muted-2: #64748b;
+            --accent: #6d5efc;
+            --accent-2: #22d3ee;
+            --red: #ff3b5c;
+            --red-soft: rgba(255, 59, 92, 0.14);
+            --green: #22c55e;
+            --green-soft: rgba(34, 197, 94, 0.14);
+            --radius: 22px;
+            --shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+            --font: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        [hidden] { display: none !important; }
+
+        html { scroll-behavior: smooth; }
+
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f1f1f1;
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            background:
+                radial-gradient(900px 620px at 8% -12%, rgba(109, 94, 252, 0.24), transparent 62%),
+                radial-gradient(820px 520px at 98% 0%, rgba(34, 211, 238, 0.13), transparent 58%),
+                radial-gradient(1000px 720px at 50% 112%, rgba(34, 197, 94, 0.07), transparent 62%),
+                var(--bg);
         }
 
-        h1 {
-            text-align: center;
-            margin-top: 30px;
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+            background-size: 56px 56px;
+            mask-image: radial-gradient(circle at 50% 18%, black, transparent 72%);
+            -webkit-mask-image: radial-gradient(circle at 50% 18%, black, transparent 72%);
         }
 
-        .container {
+        body.is-busy { overflow: hidden; }
+
+        .page {
+            position: relative;
+            z-index: 1;
+            width: min(1180px, calc(100% - 40px));
+            margin: 0 auto;
+            padding-bottom: 48px;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Top bar                                                          */
+        /* ---------------------------------------------------------------- */
+        .topbar {
             display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-            margin-top: 50px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 24px 0 10px;
         }
 
-        .section {
-            width: 45%;
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 750;
+            font-size: 17px;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            color: #fff;
+            background: linear-gradient(135deg, #7c6cff, #4f46e5 52%, #22d3ee);
+            box-shadow: 0 10px 26px rgba(109, 94, 252, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+
+        .brand-mark svg { width: 21px; height: 21px; }
+
+        .brand-sub {
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 13px;
+            margin-left: 3px;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(2, 6, 23, 0.55);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .status-pill .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #f59e0b;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+        }
+
+        .status-pill.is-ready .dot {
+            background: var(--green);
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+        }
+
+        .status-pill.is-offline .dot {
+            background: var(--red);
+            box-shadow: 0 0 0 4px rgba(255, 59, 92, 0.15);
+        }
+
+        .ghost-link {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .ghost-link:hover { color: var(--text); }
+
+        /* ---------------------------------------------------------------- */
+        /* Hero                                                             */
+        /* ---------------------------------------------------------------- */
+        .hero {
+            max-width: 790px;
+            margin: 64px auto 44px;
             text-align: center;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            padding: 7px 13px;
+            border: 1px solid rgba(109, 94, 252, 0.3);
+            border-radius: 999px;
+            background: rgba(109, 94, 252, 0.1);
+            color: #b9b2ff;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow .pulse {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-2);
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.6);
+            animation: pulse 2.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); }
+            70% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+        }
+
+        .hero h1 {
+            margin: 20px 0 14px;
+            font-size: clamp(36px, 5.6vw, 60px);
+            line-height: 1.04;
+            letter-spacing: -0.045em;
+            font-weight: 800;
+        }
+
+        .grad-text {
+            background: linear-gradient(100deg, #a78bfa 0%, #6d5efc 38%, #22d3ee 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .hero p {
+            max-width: 610px;
+            margin: 0 auto;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.7;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Workspace                                                        */
+        /* ---------------------------------------------------------------- */
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.88fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .panel {
+            position: relative;
+            padding: 26px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: linear-gradient(180deg, rgba(17, 26, 45, 0.9), rgba(9, 14, 27, 0.92));
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background: linear-gradient(140deg, rgba(255, 255, 255, 0.06), transparent 32%);
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
             margin-bottom: 20px;
         }
 
-        .input-container {
-            margin-bottom: 20px;
+        .panel-head h2 {
+            margin: 0;
+            font-size: 17px;
+            letter-spacing: -0.02em;
+        }
+
+        .muted { color: var(--muted); }
+        .small { font-size: 12.5px; line-height: 1.55; }
+
+        .panel-head .muted { margin: 5px 0 0; }
+
+        .chip {
+            flex: none;
+            padding: 6px 10px;
+            border: 1px solid rgba(34, 211, 238, 0.25);
+            border-radius: 999px;
+            background: rgba(34, 211, 238, 0.08);
+            color: #7dd3fc;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Dropzone                                                         */
+        /* ---------------------------------------------------------------- */
+        .dropzone {
             display: flex;
             flex-direction: column;
             align-items: center;
-        }
-
-        .input-container input[type="file"] {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            font-size: 16px;
-            width: 100%;
-            box-sizing: border-box;
-            display: inline-block;
-            max-width: 80%;
-        }
-
-        .preview-container {
+            justify-content: center;
+            min-height: 268px;
+            padding: 36px 24px;
+            border: 1.5px dashed var(--border-strong);
+            border-radius: 18px;
+            background:
+                radial-gradient(420px 180px at 50% 0%, rgba(109, 94, 252, 0.12), transparent 70%),
+                rgba(2, 6, 23, 0.42);
             text-align: center;
-            margin: 20px 0;
-        }
-
-        .preview-container video {
-            max-width: 100%;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            display: none;
-        }
-
-        button {
-            background-color: #007BFF;
-            color: #fff;
-            padding: 10px 20px;
-            border: none;
             cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .dropzone:hover,
+        .dropzone:focus-visible {
+            border-color: rgba(109, 94, 252, 0.75);
+            background:
+                radial-gradient(420px 180px at 50% 0%, rgba(109, 94, 252, 0.2), transparent 70%),
+                rgba(2, 6, 23, 0.55);
+            box-shadow: 0 0 0 4px rgba(109, 94, 252, 0.09);
+        }
+
+        .dropzone.is-dragging {
+            border-style: solid;
+            border-color: var(--accent-2);
+            background:
+                radial-gradient(420px 180px at 50% 0%, rgba(34, 211, 238, 0.18), transparent 70%),
+                rgba(2, 6, 23, 0.62);
+            transform: scale(1.012);
+            box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.12), 0 20px 50px rgba(34, 211, 238, 0.08);
+        }
+
+        .drop-icon {
+            display: grid;
+            place-items: center;
+            width: 66px;
+            height: 66px;
+            margin-bottom: 18px;
+            border: 1px solid rgba(109, 94, 252, 0.34);
+            border-radius: 20px;
+            background: linear-gradient(150deg, rgba(109, 94, 252, 0.28), rgba(34, 211, 238, 0.1));
+            color: #c4b5fd;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 14px 34px rgba(8, 11, 26, 0.5);
+        }
+
+        .drop-icon svg { width: 30px; height: 30px; }
+
+        .dropzone h3 {
+            margin: 0 0 7px;
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .dropzone p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13.5px;
+            line-height: 1.6;
+        }
+
+        .dropzone .link {
+            color: #a5b4fc;
+            font-weight: 650;
+            text-decoration: underline;
+            text-decoration-color: rgba(165, 180, 252, 0.45);
+            text-underline-offset: 3px;
+        }
+
+        .formats {
+            margin-top: 14px !important;
+            color: var(--muted-2) !important;
+            font-size: 10.5px !important;
+            font-weight: 700;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Preview                                                          */
+        /* ---------------------------------------------------------------- */
+        .preview-wrap {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(2, 6, 23, 0.42);
+            overflow: hidden;
+        }
+
+        .preview-media {
+            display: grid;
+            place-items: center;
+            min-height: 200px;
+            max-height: 320px;
+            background:
+                linear-gradient(45deg, rgba(148, 163, 184, 0.05) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.05) 75%) 0 0 / 22px 22px,
+                linear-gradient(45deg, rgba(148, 163, 184, 0.05) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.05) 75%) 11px 11px / 22px 22px,
+                #050914;
+            overflow: hidden;
+        }
+
+        .preview-media video,
+        .preview-media img {
+            display: block;
+            width: 100%;
+            max-height: 320px;
+            object-fit: contain;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 13px 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            min-width: 0;
+        }
+
+        .file-glyph {
+            display: grid;
+            place-items: center;
+            flex: none;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(109, 94, 252, 0.12);
+            color: #a5b4fc;
+        }
+
+        .file-glyph svg { width: 18px; height: 18px; }
+
+        .file-name {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 650;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 340px;
+        }
+
+        .file-info .muted { margin: 3px 0 0; }
+
+        .icon-btn {
+            display: grid;
+            place-items: center;
+            flex: none;
+            width: 34px;
+            height: 34px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            color: #fda4af;
+            border-color: rgba(255, 59, 92, 0.4);
+            background: rgba(255, 59, 92, 0.08);
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Buttons / errors                                                 */
+        /* ---------------------------------------------------------------- */
+        .primary-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            height: 52px;
+            margin-top: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            background: linear-gradient(135deg, #7c6cff 0%, #4f46e5 55%, #0891b2 100%);
+            color: #fff;
+            font-family: inherit;
+            font-size: 14.5px;
+            font-weight: 750;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: 0 14px 34px rgba(79, 70, 229, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
+        }
+
+        .primary-btn svg { width: 17px; height: 17px; }
+
+        .primary-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+            box-shadow: 0 18px 42px rgba(79, 70, 229, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+        }
+
+        .primary-btn:active:not(:disabled) { transform: translateY(0); }
+
+        .primary-btn:disabled {
+            opacity: 0.42;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .primary-btn:focus-visible {
+            outline: 2px solid var(--accent-2);
+            outline-offset: 3px;
+        }
+
+        .privacy-note {
+            margin: 12px 0 0;
+            color: var(--muted-2);
+            font-size: 11.5px;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .error-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 16px;
+            padding: 12px 14px;
+            border: 1px solid rgba(255, 59, 92, 0.35);
+            border-radius: 12px;
+            background: rgba(255, 59, 92, 0.1);
+            color: #fecdd3;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .error-box svg { flex: none; width: 17px; height: 17px; margin-top: 1px; }
+        .error-box p { margin: 0; }
+
+        /* ---------------------------------------------------------------- */
+        /* Result panel                                                     */
+        /* ---------------------------------------------------------------- */
+        .result-panel { min-height: 100%; }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 360px;
+            padding: 20px 12px;
+            text-align: center;
+        }
+
+        .empty-orbit {
+            position: relative;
+            display: grid;
+            place-items: center;
+            width: 96px;
+            height: 96px;
+            margin-bottom: 22px;
+            border: 1px dashed rgba(148, 163, 184, 0.3);
+            border-radius: 50%;
+            color: var(--muted-2);
+            animation: orbit 24s linear infinite;
+        }
+
+        .empty-orbit::before,
+        .empty-orbit::after {
+            content: "";
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(148, 163, 184, 0.09);
+        }
+
+        .empty-orbit::before { inset: -14px; }
+        .empty-orbit::after { inset: 14px; }
+
+        .empty-orbit svg {
+            width: 32px;
+            height: 32px;
+            animation: orbit 24s linear infinite reverse;
+        }
+
+        @keyframes orbit { to { transform: rotate(360deg); } }
+
+        .empty-state h3 {
+            margin: 0 0 8px;
             font-size: 16px;
-            border-radius: 3px;
         }
 
-        button:hover {
-            background-color: #0056b3;
+        .empty-state p {
+            max-width: 270px;
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.65;
         }
 
-        .spinner {
-            display: none;
+        .result-card {
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(2, 6, 23, 0.4);
+            transition: border-color 0.35s ease, background 0.35s ease, box-shadow 0.35s ease;
+        }
+
+        .result-card[data-verdict="fake"] {
+            border-color: rgba(255, 59, 92, 0.42);
+            background:
+                radial-gradient(420px 200px at 0% 0%, rgba(255, 59, 92, 0.19), transparent 68%),
+                rgba(2, 6, 23, 0.5);
+            box-shadow: 0 0 0 1px rgba(255, 59, 92, 0.06), 0 18px 50px rgba(255, 59, 92, 0.08);
+        }
+
+        .result-card[data-verdict="real"] {
+            border-color: rgba(34, 197, 94, 0.42);
+            background:
+                radial-gradient(420px 200px at 0% 0%, rgba(34, 197, 94, 0.17), transparent 68%),
+                rgba(2, 6, 23, 0.5);
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.06), 0 18px 50px rgba(34, 197, 94, 0.08);
+        }
+
+        .verdict-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .verdict-icon {
+            display: grid;
+            place-items: center;
+            flex: none;
+            width: 52px;
+            height: 52px;
+            border-radius: 15px;
+            background: rgba(148, 163, 184, 0.1);
+            color: var(--muted);
+        }
+
+        .verdict-icon svg { width: 25px; height: 25px; }
+
+        [data-verdict="fake"] .verdict-icon {
+            background: var(--red-soft);
+            color: #ff7d93;
+            box-shadow: inset 0 0 0 1px rgba(255, 59, 92, 0.2);
+        }
+
+        [data-verdict="real"] .verdict-icon {
+            background: var(--green-soft);
+            color: #4ade80;
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+        }
+
+        .result-label {
+            margin: 0 0 2px;
+            color: var(--muted);
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        .verdict-row h3 {
+            margin: 0;
+            font-size: 27px;
+            line-height: 1.15;
+            letter-spacing: -0.035em;
+            font-weight: 800;
+        }
+
+        [data-verdict="fake"] .verdict-row h3 { color: var(--red); }
+        [data-verdict="real"] .verdict-row h3 { color: var(--green); }
+
+        .verdict-row .muted { margin: 4px 0 0; }
+
+        .confidence-block {
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            background: rgba(148, 163, 184, 0.045);
+        }
+
+        .confidence-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 12.5px;
+            font-weight: 650;
+            color: var(--muted);
+        }
+
+        .confidence-head strong {
+            color: var(--text);
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .bar-track {
+            height: 9px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.14);
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #818cf8, #22d3ee);
+            transition: width 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        [data-verdict="fake"] .bar-fill {
+            background: linear-gradient(90deg, #fb7185, #ff3b5c);
+            box-shadow: 0 0 18px rgba(255, 59, 92, 0.45);
+        }
+
+        [data-verdict="real"] .bar-fill {
+            background: linear-gradient(90deg, #4ade80, #16a34a);
+            box-shadow: 0 0 18px rgba(34, 197, 94, 0.4);
+        }
+
+        .confidence-block .muted { margin: 10px 0 0; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+            margin-top: 14px;
+        }
+
+        .stat {
+            padding: 11px 12px;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            background: rgba(148, 163, 184, 0.045);
+        }
+
+        .stat-label {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--muted-2);
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .stat strong {
+            font-size: 15px;
+            letter-spacing: -0.01em;
+        }
+
+        .verdict-foot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            color: var(--muted);
+            font-size: 11.5px;
+            line-height: 1.5;
+        }
+
+        .verdict-foot .dot {
+            flex: none;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--muted-2);
+        }
+
+        [data-verdict="fake"] .verdict-foot .dot { background: var(--red); }
+        [data-verdict="real"] .verdict-foot .dot { background: var(--green); }
+
+        /* ---------------------------------------------------------------- */
+        /* How it works                                                     */
+        /* ---------------------------------------------------------------- */
+        .how { margin-top: 72px; }
+
+        .section-heading {
+            max-width: 560px;
+            margin-bottom: 24px;
+        }
+
+        .section-heading .eyebrow {
+            border-color: rgba(148, 163, 184, 0.2);
+            background: rgba(148, 163, 184, 0.06);
+            color: var(--muted);
+        }
+
+        .section-heading h2 {
+            margin: 14px 0 0;
+            font-size: clamp(24px, 3.4vw, 32px);
+            letter-spacing: -0.035em;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .step {
+            position: relative;
+            padding: 22px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(17, 26, 45, 0.62), rgba(9, 14, 27, 0.72));
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .step:hover {
+            transform: translateY(-3px);
+            border-color: rgba(109, 94, 252, 0.35);
+        }
+
+        .step-num {
+            display: inline-block;
+            margin-bottom: 14px;
+            color: #a5b4fc;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+        }
+
+        .step h3 {
+            margin: 0 0 8px;
+            font-size: 15.5px;
+            letter-spacing: -0.02em;
+        }
+
+        .step p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.68;
+        }
+
+        .disclaimer {
+            margin-top: 26px;
+            padding: 14px 18px;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(148, 163, 184, 0.035);
+            color: var(--muted-2);
+            font-size: 11.5px;
+            line-height: 1.65;
+        }
+
+        .disclaimer strong { color: var(--muted); }
+
+        footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 34px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            color: var(--muted-2);
+            font-size: 11.5px;
+        }
+
+        footer a { color: var(--muted); text-decoration: none; }
+        footer a:hover { color: var(--text); }
+
+        /* ---------------------------------------------------------------- */
+        /* Processing overlay                                               */
+        /* ---------------------------------------------------------------- */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(3, 6, 15, 0.74);
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
+            animation: fade-in 0.2s ease;
+        }
+
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+        .overlay-card {
+            width: min(430px, 100%);
+            padding: 34px 30px 28px;
+            border: 1px solid var(--border-strong);
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(17, 26, 45, 0.98), rgba(8, 12, 24, 0.99));
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.07);
             text-align: center;
         }
 
-        .spinner img {
-            width: 50px;
-            height: 50px;
+        .spinner-gif {
+            width: 132px;
+            height: auto;
+            margin: -8px auto 6px;
+            display: block;
+            filter: drop-shadow(0 10px 24px rgba(109, 94, 252, 0.34));
         }
 
-        .result {
-            margin-top: 20px;
-            text-align: center;
-            font-weight: bold;
+        .overlay-card h3 {
+            margin: 0 0 7px;
+            font-size: 19px;
+            letter-spacing: -0.02em;
+        }
+
+        .overlay-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .overlay-track {
+            height: 5px;
+            margin: 22px 0 12px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.14);
+            overflow: hidden;
+        }
+
+        .overlay-bar {
+            width: 42%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #7c6cff, #22d3ee);
+            animation: indeterminate 1.35s ease-in-out infinite;
+        }
+
+        @keyframes indeterminate {
+            0% { transform: translateX(-110%); }
+            100% { transform: translateX(260%); }
+        }
+
+        .overlay-note {
+            color: var(--muted-2) !important;
+            font-size: 11px !important;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* Responsive                                                       */
+        /* ---------------------------------------------------------------- */
+        @media (max-width: 960px) {
+            .workspace { grid-template-columns: 1fr; }
+            .result-panel { min-height: 0; }
+            .empty-state { min-height: 260px; }
+            .steps { grid-template-columns: 1fr; }
+            .hero { margin-top: 44px; }
+        }
+
+        @media (max-width: 640px) {
+            .page { width: min(100% - 24px, 1180px); }
+            .topbar { align-items: flex-start; }
+            .brand-sub, .ghost-link { display: none; }
+            .hero { margin: 38px auto 30px; }
+            .hero p { font-size: 14.5px; }
+            .panel { padding: 19px; border-radius: 18px; }
+            .dropzone { min-height: 228px; padding: 28px 18px; }
+            .file-name { max-width: 210px; }
+            .verdict-row h3 { font-size: 24px; }
+            footer { flex-direction: column; align-items: flex-start; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Deepfake Video Detection</h1>
+    <div class="page">
+        <header class="topbar">
+            <a class="brand" href="/" aria-label="VeriFrame home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3l7 3v5.2c0 4.4-2.9 8.4-7 9.8-4.1-1.4-7-5.4-7-9.8V6l7-3z"/>
+                        <path d="M9.2 12.2l1.9 1.9 3.8-4.1"/>
+                    </svg>
+                </span>
+                <span>VeriFrame<span class="brand-sub">Forensics</span></span>
+            </a>
 
-    <div class="container">
-        <div class="section">
-            <h2>Upload Video</h2>
-            <div class="input-container">
-                <input type="file" id="videoInput" accept="video/*" onchange="previewVideo(event)">
+            <div class="topbar-right">
+                <span class="status-pill" id="modelStatus">
+                    <span class="dot"></span>
+                    <span id="modelStatusText">Checking engine…</span>
+                </span>
+                <a class="ghost-link" href="#how-it-works">How it works</a>
             </div>
+        </header>
 
-            <div class="preview-container">
-                <video id="videoPlayer" controls></video>
-            </div>
+        <main>
+            <section class="hero">
+                <span class="eyebrow"><span class="pulse"></span> AI-powered media forensics</span>
+                <h1>Is it real, or is it <span class="grad-text">synthetic?</span></h1>
+                <p>Upload a video or image. A spatio-temporal neural network inspects frame-level artifacts and returns a clear verdict with a confidence score.</p>
+            </section>
 
-            <button onclick="submitVideo()">Detect Deepfake</button>
+            <section class="workspace" aria-label="Deepfake analysis workspace">
+                <!-- Upload / analyze -->
+                <div class="panel upload-panel">
+                    <div class="panel-head">
+                        <div>
+                            <h2>Analyze media</h2>
+                            <p class="muted small">One file at a time · max {{ config.MAX_CONTENT_LENGTH // (1024 * 1024) }} MB</p>
+                        </div>
+                        <span class="chip" id="fileChip" hidden>Ready</span>
+                    </div>
 
-            <div class="spinner" id="videoSpinner">
-                <img src="static/spinner1.gif" alt="Loading...">
-            </div>
+                    <div id="dropzone" class="dropzone" role="button" tabindex="0"
+                         aria-label="Upload a video or image. Drag and drop, or press Enter to browse.">
+                        <input id="fileInput" type="file" hidden
+                               accept="video/*,image/*,.mkv,.avi,.mov,.webm,.m4v,.mp4,.jpg,.jpeg,.png,.webp,.bmp">
+                        <div class="drop-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 16V4"/>
+                                <path d="M7.5 8.5L12 4l4.5 4.5"/>
+                                <path d="M4 15v3.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V15"/>
+                            </svg>
+                        </div>
+                        <h3>Upload Video or Image</h3>
+                        <p>Drag &amp; drop your file here, or <span class="link">browse files</span></p>
+                        <p class="formats">MP4 · MOV · AVI · MKV · WEBM · JPG · PNG · WEBP</p>
+                    </div>
 
-            <div class="result" id="detectionResult">
-                <!-- Result will be displayed here -->
-            </div>
+                    <div id="previewWrap" class="preview-wrap" hidden>
+                        <div class="preview-media">
+                            <video id="videoPreview" controls playsinline muted hidden></video>
+                            <img id="imagePreview" alt="Selected image preview" hidden>
+                        </div>
+                        <div class="file-row">
+                            <div class="file-info">
+                                <span class="file-glyph" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z"/>
+                                        <path d="M14 3v5h5"/>
+                                    </svg>
+                                </span>
+                                <div>
+                                    <p id="fileName" class="file-name">—</p>
+                                    <p id="fileMeta" class="muted small">—</p>
+                                </div>
+                            </div>
+                            <button id="removeFile" class="icon-btn" type="button" aria-label="Remove selected file">&times;</button>
+                        </div>
+                    </div>
+
+                    <div id="errorBox" class="error-box" role="alert" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9"/>
+                            <path d="M12 7.5v5"/>
+                            <path d="M12 16.5h.01"/>
+                        </svg>
+                        <p id="errorText"></p>
+                    </div>
+
+                    <button id="analyzeBtn" class="primary-btn" type="button" disabled>
+                        <span>Run Deepfake Analysis</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14"/>
+                            <path d="M13 6l6 6-6 6"/>
+                        </svg>
+                    </button>
+                    <p class="privacy-note">Files are analyzed on the server and deleted immediately after inference.</p>
+                </div>
+
+                <!-- Result -->
+                <aside class="panel result-panel" aria-label="Detection result">
+                    <div class="panel-head">
+                        <h2>Detection result</h2>
+                        <span id="resultTimestamp" class="muted small"></span>
+                    </div>
+
+                    <div id="emptyState" class="empty-state">
+                        <div class="empty-orbit" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="7"/>
+                                <path d="M20 20l-3.5-3.5"/>
+                                <path d="M8.5 11h5"/>
+                            </svg>
+                        </div>
+                        <h3>Awaiting analysis</h3>
+                        <p>Your verdict, confidence score, and frame-level metrics will appear here.</p>
+                    </div>
+
+                    <div id="resultCard" class="result-card" data-verdict="idle" hidden aria-live="polite">
+                        <div class="verdict-row">
+                            <span id="verdictIcon" class="verdict-icon" aria-hidden="true"></span>
+                            <div>
+                                <p class="result-label">Result</p>
+                                <h3 id="verdictText">—</h3>
+                                <p id="verdictSub" class="muted small"></p>
+                            </div>
+                        </div>
+
+                        <div class="confidence-block">
+                            <div class="confidence-head">
+                                <span>Model confidence</span>
+                                <strong id="confidenceValue">0%</strong>
+                            </div>
+                            <div class="bar-track" role="progressbar" aria-label="Model confidence"
+                                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="confidenceTrack">
+                                <div id="confidenceBar" class="bar-fill"></div>
+                            </div>
+                            <p class="muted small">
+                                Fake probability: <span id="fakeProbValue">0%</span> ·
+                                threshold: <span id="thresholdValue">50%</span>
+                            </p>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat"><span class="stat-label">Frames</span><strong id="framesValue">—</strong></div>
+                            <div class="stat"><span class="stat-label">Windows</span><strong id="windowsValue">—</strong></div>
+                            <div class="stat"><span class="stat-label">Time</span><strong id="timeValue">—</strong></div>
+                            <div class="stat"><span class="stat-label">Media</span><strong id="mediaValue">—</strong></div>
+                        </div>
+
+                        <div class="verdict-foot">
+                            <span class="dot"></span>
+                            <span id="verdictFootText">Awaiting result</span>
+                        </div>
+                    </div>
+                </aside>
+            </section>
+
+            <section class="how" id="how-it-works">
+                <div class="section-heading">
+                    <span class="eyebrow">Under the hood</span>
+                    <h2>Three stages, one verdict</h2>
+                </div>
+                <div class="steps">
+                    <article class="step">
+                        <span class="step-num">01 · SAMPLING</span>
+                        <h3>Frames are extracted</h3>
+                        <p>OpenCV seeks evenly across the clip, centre-crops each frame to a square, and resizes it to 224×224 RGB. Images skip extraction and enter as a single frame.</p>
+                    </article>
+                    <article class="step">
+                        <span class="step-num">02 · FEATURES</span>
+                        <h3>InceptionV3 encodes</h3>
+                        <p>Each frame becomes a 2048-dimensional feature vector. Up to 20 vectors form one sequence, and longer clips produce additional windows.</p>
+                    </article>
+                    <article class="step">
+                        <span class="step-num">03 · VERDICT</span>
+                        <h3>The GRU decides</h3>
+                        <p>A stacked GRU reads the temporal sequence with a length mask, outputs a sigmoid fake probability, and the window scores are averaged.</p>
+                    </article>
+                </div>
+            </section>
+
+            <p class="disclaimer">
+                <strong>Note:</strong> This is a machine-learning screening tool, not forensic proof. Predictions can be wrong,
+                especially on compressed, low-light, or out-of-distribution media. Always combine automated results with
+                human review before making a final judgment.
+            </p>
+        </main>
+
+        <footer>
+            <span>VeriFrame · Flask + TensorFlow + OpenCV</span>
+            <span>Local inference · no third-party uploads</span>
+        </footer>
+    </div>
+
+    <!-- Async processing overlay (keeps the page responsive) -->
+    <div id="processingOverlay" class="overlay" hidden role="status" aria-live="polite">
+        <div class="overlay-card">
+            <img class="spinner-gif" src="{{ url_for('static', filename='spinner.gif') }}" alt="">
+            <h3>Analyzing your media</h3>
+            <p id="processingText">Loading the neural network…</p>
+            <div class="overlay-track"><div class="overlay-bar"></div></div>
+            <p class="overlay-note">The first run can take longer while TensorFlow warms up.</p>
         </div>
     </div>
 
     <script>
-        function previewVideo(event) {
-            const videoInput = document.getElementById('videoInput');
-            const videoPlayer = document.getElementById('videoPlayer');
-            const file = videoInput.files[0];
+        (() => {
+            "use strict";
 
-            if (file) {
-                const url = URL.createObjectURL(file);
-                videoPlayer.src = url;
-                videoPlayer.style.display = 'block';
+            const MAX_BYTES = {{ config.MAX_CONTENT_LENGTH }};
+            const MAX_MB = Math.round(MAX_BYTES / (1024 * 1024));
+            const IMAGE_EXT = /\.(jpe?g|png|bmp|webp)$/i;
+            const VIDEO_EXT = /\.(mp4|avi|mov|mkv|webm|m4v|mpeg|mpg|flv|wmv)$/i;
+
+            const $ = (id) => document.getElementById(id);
+
+            const dropzone = $("dropzone");
+            const fileInput = $("fileInput");
+            const previewWrap = $("previewWrap");
+            const videoPreview = $("videoPreview");
+            const imagePreview = $("imagePreview");
+            const fileName = $("fileName");
+            const fileMeta = $("fileMeta");
+            const fileChip = $("fileChip");
+            const removeFile = $("removeFile");
+            const analyzeBtn = $("analyzeBtn");
+            const errorBox = $("errorBox");
+            const errorText = $("errorText");
+            const emptyState = $("emptyState");
+            const resultCard = $("resultCard");
+            const resultTimestamp = $("resultTimestamp");
+            const verdictIcon = $("verdictIcon");
+            const verdictText = $("verdictText");
+            const verdictSub = $("verdictSub");
+            const verdictFootText = $("verdictFootText");
+            const confidenceValue = $("confidenceValue");
+            const confidenceBar = $("confidenceBar");
+            const confidenceTrack = $("confidenceTrack");
+            const fakeProbValue = $("fakeProbValue");
+            const thresholdValue = $("thresholdValue");
+            const framesValue = $("framesValue");
+            const windowsValue = $("windowsValue");
+            const timeValue = $("timeValue");
+            const mediaValue = $("mediaValue");
+            const overlay = $("processingOverlay");
+            const processingText = $("processingText");
+            const modelStatus = $("modelStatus");
+            const modelStatusText = $("modelStatusText");
+
+            const WARNING_ICON = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.3 4.2L2.6 17.4A2 2 0 004.3 20h15.4a2 2 0 001.7-2.6L13.7 4.2a2 2 0 00-3.4 0z"/>
+                    <path d="M12 9v4"/>
+                    <path d="M12 16.5h.01"/>
+                </svg>`;
+
+            const CHECK_ICON = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M8.2 12.3l2.5 2.5 5.1-5.5"/>
+                </svg>`;
+
+            let selectedFile = null;
+            let objectUrl = null;
+            let processingTimer = null;
+
+            const PROCESSING_MESSAGES = [
+                "Loading the neural network…",
+                "Extracting representative frames…",
+                "Running spatio-temporal inference…",
+                "Aggregating frame predictions…"
+            ];
+
+            function formatBytes(bytes) {
+                if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+                const units = ["B", "KB", "MB", "GB"];
+                const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+                const value = bytes / Math.pow(1024, index);
+                return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
             }
-        }
 
-        function submitVideo() {
-            const videoInput = document.getElementById('videoInput');
-            const videoPlayer = document.getElementById('videoPlayer');
-            const videoSpinner = document.getElementById('videoSpinner');
-            const detectionResult = document.getElementById('detectionResult');
-
-            const file = videoInput.files[0];
-            if (!file) {
-                alert('Please upload a video file.');
-                return;
+            function showError(message) {
+                errorText.textContent = message;
+                errorBox.hidden = false;
             }
 
-            // Show the spinner while waiting for the response
-            videoSpinner.style.display = 'block';
+            function clearError() {
+                errorBox.hidden = true;
+                errorText.textContent = "";
+            }
 
-            // Remove previous results
-            detectionResult.innerHTML = '';
+            function revokeObjectUrl() {
+                if (objectUrl) {
+                    URL.revokeObjectURL(objectUrl);
+                    objectUrl = null;
+                }
+            }
 
-            // Create a new FormData object
-            const formData = new FormData();
-            formData.append('video', file);
+            function resetPreview() {
+                videoPreview.pause();
+                videoPreview.removeAttribute("src");
+                videoPreview.load();
+                videoPreview.hidden = true;
+                imagePreview.removeAttribute("src");
+                imagePreview.hidden = true;
+                revokeObjectUrl();
+            }
 
-            // Create the request object
-            fetch('/predict', {
-                method: 'POST',
-                body: formData,
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Hide the spinner
-                videoSpinner.style.display = 'none';
+            function resetSelection() {
+                selectedFile = null;
+                fileInput.value = "";
+                resetPreview();
+                previewWrap.hidden = true;
+                dropzone.hidden = false;
+                fileChip.hidden = true;
+                analyzeBtn.disabled = true;
+                clearError();
+            }
 
-                // Display the prediction result
-                const resultText = `Result: ${data.result} <br> Confidence: ${data.confidence.toFixed(2)}`;
-                detectionResult.innerHTML = resultText;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                detectionResult.innerHTML = 'An error occurred while processing the video.';
-                videoSpinner.style.display = 'none';
+            function setFile(file) {
+                if (!file) return;
+
+                clearError();
+
+                const isImage = IMAGE_EXT.test(file.name);
+                const isVideo = VIDEO_EXT.test(file.name);
+
+                if (!isImage && !isVideo) {
+                    showError("Unsupported file type. Upload a video (MP4, MOV, AVI, MKV, WEBM) or an image (JPG, PNG, WEBP, BMP).");
+                    return;
+                }
+
+                if (file.size === 0) {
+                    showError("That file is empty. Please choose a valid media file.");
+                    return;
+                }
+
+                if (file.size > MAX_BYTES) {
+                    showError(`That file is ${formatBytes(file.size)}. The maximum upload size is ${MAX_MB} MB.`);
+                    return;
+                }
+
+                selectedFile = file;
+
+                resetPreview();
+                objectUrl = URL.createObjectURL(file);
+
+                if (isImage) {
+                    imagePreview.src = objectUrl;
+                    imagePreview.hidden = false;
+                    videoPreview.hidden = true;
+                } else {
+                    videoPreview.src = objectUrl;
+                    videoPreview.hidden = false;
+                    videoPreview.load();
+                    imagePreview.hidden = true;
+                }
+
+                fileName.textContent = file.name;
+                fileMeta.textContent = `${formatBytes(file.size)} · ${isImage ? "Image" : "Video"} · ${(file.type || "unknown type")}`;
+                previewWrap.hidden = false;
+                dropzone.hidden = true;
+                fileChip.textContent = isImage ? "Image" : "Video";
+                fileChip.hidden = false;
+                analyzeBtn.disabled = false;
+            }
+
+            function startProcessingMessages() {
+                let index = 0;
+                processingText.textContent = PROCESSING_MESSAGES[0];
+                window.clearInterval(processingTimer);
+                processingTimer = window.setInterval(() => {
+                    index = Math.min(index + 1, PROCESSING_MESSAGES.length - 1);
+                    processingText.textContent = PROCESSING_MESSAGES[index];
+                }, 3200);
+            }
+
+            function stopProcessingMessages() {
+                window.clearInterval(processingTimer);
+                processingTimer = null;
+            }
+
+            function renderResult(data) {
+                const rawVerdict = String(data.result || data.verdict || "").toUpperCase();
+                const isFake = rawVerdict === "DEEPFAKE" || rawVerdict === "FAKE";
+                const isReal = rawVerdict === "REAL";
+
+                if (!isFake && !isReal) {
+                    showError("The server returned an unexpected response. Please try again.");
+                    return;
+                }
+
+                let confidence = Number(data.confidence);
+                if (!Number.isFinite(confidence)) {
+                    confidence = Number(data.confidence_ratio) * 100;
+                }
+                if (!Number.isFinite(confidence)) confidence = 0;
+                confidence = Math.max(0, Math.min(100, confidence));
+
+                let fakeProbability = Number(data.fake_probability);
+                if (!Number.isFinite(fakeProbability)) {
+                    fakeProbability = isFake ? confidence / 100 : 1 - confidence / 100;
+                }
+                fakeProbability = Math.max(0, Math.min(1, fakeProbability));
+
+                const threshold = Number(data.threshold);
+                const thresholdText = Number.isFinite(threshold) ? `${Math.round(threshold * 100)}%` : "50%";
+
+                emptyState.hidden = true;
+                resultCard.hidden = false;
+                resultCard.dataset.verdict = isFake ? "fake" : "real";
+
+                verdictIcon.innerHTML = isFake ? WARNING_ICON : CHECK_ICON;
+                verdictText.textContent = isFake ? "DEEPFAKE" : "REAL";
+                verdictSub.textContent = isFake
+                    ? "Synthetic manipulation patterns detected"
+                    : "No strong deepfake patterns detected";
+                if (confidence < 60) {
+                    verdictFootText.textContent = "Low-confidence result — manual review is strongly recommended.";
+                } else {
+                    verdictFootText.textContent = isFake
+                        ? "Treat this media as suspect and verify the source."
+                        : "The model found no strong synthetic signals.";
+                }
+
+                confidenceValue.textContent = `${confidence.toFixed(1)}%`;
+                fakeProbValue.textContent = `${(fakeProbability * 100).toFixed(1)}%`;
+                thresholdValue.textContent = thresholdText;
+
+                framesValue.textContent = Number.isFinite(Number(data.frames_analyzed))
+                    ? String(data.frames_analyzed)
+                    : "—";
+                windowsValue.textContent = Number.isFinite(Number(data.windows_analyzed))
+                    ? String(data.windows_analyzed)
+                    : "—";
+                timeValue.textContent = Number.isFinite(Number(data.processing_time_ms))
+                    ? `${(Number(data.processing_time_ms) / 1000).toFixed(2)}s`
+                    : "—";
+                mediaValue.textContent = data.media_type
+                    ? String(data.media_type).toUpperCase()
+                    : "—";
+
+                resultTimestamp.textContent = new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                });
+
+                confidenceTrack.setAttribute("aria-valuenow", String(Math.round(confidence)));
+                confidenceBar.style.width = "0%";
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => {
+                        confidenceBar.style.width = `${confidence}%`;
+                    });
+                });
+
+                resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+
+            async function analyze() {
+                if (!selectedFile) {
+                    showError("Choose a video or image first.");
+                    return;
+                }
+
+                clearError();
+
+                // Clear the previous verdict so a failed run can never leave a
+                // stale result on screen.
+                resultCard.hidden = true;
+                emptyState.hidden = false;
+                resultTimestamp.textContent = "";
+
+                overlay.hidden = false;
+                document.body.classList.add("is-busy");
+                analyzeBtn.disabled = true;
+                startProcessingMessages();
+
+                const formData = new FormData();
+                formData.append("file", selectedFile, selectedFile.name);
+
+                try {
+                    const response = await fetch("/predict", {
+                        method: "POST",
+                        body: formData,
+                        headers: { "Accept": "application/json" }
+                    });
+
+                    let data = {};
+                    try {
+                        data = await response.json();
+                    } catch (_err) {
+                        data = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(data.error || `Analysis failed (HTTP ${response.status}).`);
+                    }
+
+                    renderResult(data);
+                } catch (err) {
+                    const message = err instanceof TypeError
+                        ? "Could not reach the analysis server. Check that Flask is running and try again."
+                        : (err && err.message) || "Analysis failed. Please try again.";
+                    showError(message);
+                } finally {
+                    stopProcessingMessages();
+                    overlay.hidden = true;
+                    document.body.classList.remove("is-busy");
+                    analyzeBtn.disabled = !selectedFile;
+                }
+            }
+
+            /* ---------------- Drag & drop ---------------- */
+            ["dragenter", "dragover"].forEach((eventName) => {
+                dropzone.addEventListener(eventName, (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dropzone.classList.add("is-dragging");
+                });
             });
-        }
+
+            dropzone.addEventListener("dragleave", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                // Ignore dragleave events fired when moving over child nodes.
+                if (!dropzone.contains(event.relatedTarget)) {
+                    dropzone.classList.remove("is-dragging");
+                }
+            });
+
+            dropzone.addEventListener("drop", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropzone.classList.remove("is-dragging");
+                const files = event.dataTransfer && event.dataTransfer.files;
+                if (files && files.length > 0) setFile(files[0]);
+            });
+
+            dropzone.addEventListener("click", () => fileInput.click());
+            dropzone.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    fileInput.click();
+                }
+            });
+
+            // Prevent the browser from navigating away when a file is dropped
+            // outside the dropzone.
+            ["dragover", "drop"].forEach((eventName) => {
+                window.addEventListener(eventName, (event) => event.preventDefault());
+            });
+
+            fileInput.addEventListener("change", () => {
+                if (fileInput.files && fileInput.files[0]) setFile(fileInput.files[0]);
+            });
+
+            removeFile.addEventListener("click", (event) => {
+                event.stopPropagation();
+                resetSelection();
+            });
+
+            analyzeBtn.addEventListener("click", analyze);
+
+            /* ---------------- Engine status ---------------- */
+            fetch("/health", { headers: { "Accept": "application/json" } })
+                .then((response) => response.json())
+                .then((health) => {
+                    if (health.model_loaded) {
+                        modelStatus.classList.add("is-ready");
+                        modelStatusText.textContent = "Model ready";
+                    } else if (health.model_error) {
+                        modelStatus.classList.add("is-offline");
+                        modelStatusText.textContent = "Model unavailable";
+                    } else {
+                        modelStatusText.textContent = "Model loads on first run";
+                    }
+                })
+                .catch(() => {
+                    modelStatus.classList.add("is-offline");
+                    modelStatusText.textContent = "Engine offline";
+                });
+
+            window.addEventListener("beforeunload", revokeObjectUrl);
+        })();
     </script>
 </body>
 </html>
